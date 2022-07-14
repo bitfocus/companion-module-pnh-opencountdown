@@ -1,5 +1,5 @@
 # ToDo
-- [ ] Set timer values
+- [X] Set timer values
 - [ ] Add variables (time left)
-- [ ] Add templates
+- [X] Add presets
 - [ ] Dynamic setting (buttons for +/- done in companion)

@@ -442,6 +442,37 @@ class instance extends instance_skel {
 			}]
 		})
 
+		// Message presets
+		presets.push({
+			category: 'Messageing',
+			label: "Hide the message",
+			bank: {
+				style: 'text',
+				text: 'Hide message',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'hideMessage'
+			}]
+		})
+
+		presets.push({
+			category: 'Messageing',
+			label: "Send a message",
+			bank: {
+				style: 'text',
+				text: 'Hey! Wait',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'sendMessage',
+				options: {
+					message: "Hey! Please wait!"
+				}
+			}]
+		})
 		this.setPresetDefinitions(presets)
 	}
 
@@ -624,6 +655,20 @@ class instance extends instance_skel {
 						tooltip: 'The amount of minutes to set to the timer.'
 					}]
 			},
+			"sendMessage": {
+				label: 'Messaging: Send a message',
+				options: [
+					{
+						type: 'textinput',
+						label: 'The message to be displayed',
+						id: 'message',
+						default: "Hello World",
+						tooltip: 'The message which will be displayed'
+					}]
+			},
+			"hideMessage": {
+				label: 'Messaging: Hide the message'
+			},
 		})
 	}
 
@@ -735,6 +780,20 @@ class instance extends instance_skel {
 			} else if (action.action == 'setTime') {
 				let timeAmount = action.options.addTimeMillis + (action.options.addTimeSec * 1000) + (action.options.addTimeMins * 60 * 1000)
 				bent('GET', 200, baseUrl + "/set/addMillisToTimer?time=" + timeAmount, "json")().then(
+					function handleList(body) {
+						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tTemp.log('Connected to ' + tTemp.config.host)
+					})
+				return
+			}  else if (action.action == 'sendMessage') {
+				bent('GET', 200, baseUrl + "/ctrl/message/show?msg=" + action.options.message, "json")().then(
+					function handleList(body) {
+						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tTemp.log('Connected to ' + tTemp.config.host)
+					})
+				return
+			} else if (action.action == 'hideMessage') {
+				bent('GET', 200, baseUrl + "/ctrl/message/hide", "json")().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
 						tTemp.log('Connected to ' + tTemp.config.host)
