@@ -384,6 +384,63 @@ class instance extends instance_skel {
 			}]
 		})
 
+		// Set time 
+		presets.push({
+			category: 'Set to time',
+			label: "Set to 30 mins",
+			bank: {
+				style: 'text',
+				text: 'Set 30 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'setTime',
+				options: {
+					addTimeMillis: 0,
+					addTimeSec: 0,
+					addTimeMins: 30,
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Set to time',
+			label: "Set to 15 mins",
+			bank: {
+				style: 'text',
+				text: 'Set 15 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'setTime',
+				options: {
+					addTimeMillis: 0,
+					addTimeSec: 0,
+					addTimeMins: 15,
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Set to time',
+			label: "Set to 5 mins",
+			bank: {
+				style: 'text',
+				text: 'Set 5 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'setTime',
+				options: {
+					addTimeMillis: 0,
+					addTimeSec: 0,
+					addTimeMins: 5,
+				}
+			}]
+		})
 
 		this.setPresetDefinitions(presets)
 	}
@@ -542,6 +599,31 @@ class instance extends instance_skel {
 						tooltip: 'The amount of milliseconds to add to the timer. 1000 ms = 1 second'
 					}]
 			},
+			"setTime": {
+				label: 'Timer: Set the timer to a certain time',
+				options: [
+					{
+						type: 'number',
+						label: 'Amount of time in milliseconds to set. ',
+						id: 'addTimeMillis',
+						default: 0,
+						tooltip: 'The amount of milliseconds to set to the timer. 1000 ms = 1 second'
+					},
+					{
+						type: 'number',
+						label: 'Amount of time in seconds to set. ',
+						id: 'addTimeSec',
+						default: 30,
+						tooltip: 'The amount of seconds to set to the timer.'
+					},
+					{
+						type: 'number',
+						label: 'Amount of time in minutes to set.',
+						id: 'addTimeMins',
+						default: 1,
+						tooltip: 'The amount of minutes to set to the timer.'
+					}]
+			},
 		})
 	}
 
@@ -645,6 +727,14 @@ class instance extends instance_skel {
 				return
 			} else if (action.action == 'addRelativ') {
 				bent('GET', 200, baseUrl + "/set/relativAddMillisToTimer?time=" + action.options.addTime, "json")().then(
+					function handleList(body) {
+						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tTemp.log('Connected to ' + tTemp.config.host)
+					})
+				return
+			} else if (action.action == 'setTime') {
+				let timeAmount = action.options.addTimeMillis + (action.options.addTimeSec * 1000) + (action.options.addTimeMins * 60 * 1000)
+				bent('GET', 200, baseUrl + "/set/addMillisToTimer?time=" + timeAmount, "json")().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
 						tTemp.log('Connected to ' + tTemp.config.host)
