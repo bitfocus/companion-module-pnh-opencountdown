@@ -33,16 +33,14 @@ class instance extends instance_skel {
 			})
 		}
 
-			this.intervalId = setInterval(function handleInterval() {
-				tThis.updateDataFrame()
-			}, this.config.refreshTime | 1000)
-		
-
+		this.intervalId = setInterval(function handleInterval() {
+			tThis.updateDataFrame()
+		}, this.config.refreshTime | 1000)
 
 	}
 
-	feedback(){
-		
+	feedback() {
+
 	}
 
 	updateDataFrame() {
@@ -86,6 +84,7 @@ class instance extends instance_skel {
 	initPresets() {
 		var presets = [];
 
+		// Play presets
 		presets.push({
 			category: 'Play Controls',
 			label: "",
@@ -108,12 +107,13 @@ class instance extends instance_skel {
 						booleanSelection: true
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
 		})
+
 		presets.push({
 			category: 'Play Controls',
 			label: "",
@@ -136,8 +136,8 @@ class instance extends instance_skel {
 						booleanSelection: false
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
@@ -160,6 +160,7 @@ class instance extends instance_skel {
 			}]
 		})
 
+		// Mode presets
 		presets.push({
 			category: 'Mode Controls',
 			label: "",
@@ -182,8 +183,8 @@ class instance extends instance_skel {
 						modeDropdown: "timer"
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
@@ -204,8 +205,8 @@ class instance extends instance_skel {
 					modeDropdown: 'clock'
 				},
 				style: {
-					bgcolor: this.rgb(0,255,0),
-					color: this.rgb(255,255,255),
+					bgcolor: this.rgb(0, 255, 0),
+					color: this.rgb(255, 255, 255),
 				}
 			}],
 			feedbacks: [
@@ -215,8 +216,8 @@ class instance extends instance_skel {
 						modeDropdown: "clock",
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
@@ -244,8 +245,8 @@ class instance extends instance_skel {
 						modeDropdown: "black"
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
@@ -273,12 +274,116 @@ class instance extends instance_skel {
 						modeDropdown: "test"
 					},
 					style: {
-						bgcolor: this.rgb(0,255,0),
-						color: this.rgb(255,255,255),
+						bgcolor: this.rgb(0, 255, 0),
+						color: this.rgb(255, 255, 255),
 					}
 				},
 			],
 		})
+
+		// Add to time presets
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 5 seconds",
+			bank: {
+				style: 'text',
+				text: 'Add 5 sec',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 5000
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 30 seconds",
+			bank: {
+				style: 'text',
+				text: 'Add 30 sec',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 30000
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 1 minute",
+			bank: {
+				style: 'text',
+				text: 'Add 1 min',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 60 * 1000
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 5 minutes",
+			bank: {
+				style: 'text',
+				text: 'Add 5 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 5 * 60 * 1000
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 10 minutes",
+			bank: {
+				style: 'text',
+				text: 'Add 10 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 10 * 60 * 1000
+				}
+			}]
+		})
+
+		presets.push({
+			category: 'Add to timer',
+			label: "Add 30 minutes",
+			bank: {
+				style: 'text',
+				text: 'Add 30 mins',
+				size: '18',
+				color: '16777215'
+			},
+			actions: [{
+				action: 'addRelativ',
+				options: {
+					addTime: 30 * 60 * 1000
+				}
+			}]
+		})
+
 
 		this.setPresetDefinitions(presets)
 	}
@@ -426,6 +531,17 @@ class instance extends instance_skel {
 						tooltip: 'Show the text in a fitting color to the progress bar'
 					}]
 			},
+			"addRelativ": {
+				label: 'Timer: Add time to the timer',
+				options: [
+					{
+						type: 'number',
+						label: 'Amount of time in milliseconds to add. ',
+						id: 'addTime',
+						default: 5000,
+						tooltip: 'The amount of milliseconds to add to the timer. 1000 ms = 1 second'
+					}]
+			},
 		})
 	}
 
@@ -525,6 +641,13 @@ class instance extends instance_skel {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
 						tTemp.log('Connected to ' + tTemp.config.host)
 						tTemp.log(body)
+					})
+				return
+			} else if (action.action == 'addRelativ') {
+				bent('GET', 200, baseUrl + "/set/relativAddMillisToTimer?time=" + action.options.addTime, "json")().then(
+					function handleList(body) {
+						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tTemp.log('Connected to ' + tTemp.config.host)
 					})
 				return
 			}
