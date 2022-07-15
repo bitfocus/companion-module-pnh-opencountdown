@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+example.com"
+    "url": "git+github.com/bitfocus/companion-module-pnh-opencountdown.git"
   },
   "main": "index.js",
   "author": "TheGreydiamond <software@thegreydiamond.de>",
