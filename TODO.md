@@ -1,5 +1,6 @@
 # ToDo
-- [X] Set timer values
-- [X] Add variables (time left)
-- [X] Add presets
+
+- [x] Set timer values
+- [x] Add variables (time left)
+- [x] Add presets
 - [ ] Dynamic setting (buttons for +/- done in companion)
