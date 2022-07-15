@@ -21,6 +21,7 @@ class instance extends instance_skel {
 		this.actions() // export actions
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
+		this.init_variables() // export variables
 		this.status(this.STATUS_WARNING, 'Connecting')
 		this.isReady = false
 		if (this.config.host != undefined) {
@@ -36,6 +37,7 @@ class instance extends instance_skel {
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
 		}, this.config.refreshTime | 1000)
+		this.interval2 = setInterval(this.updateVariables, 50)
 
 	}
 
@@ -50,6 +52,7 @@ class instance extends instance_skel {
 				tThis.status(tThis.STATUS_OK, 'Connected')
 				tThis.lastData = body
 				tThis.checkFeedbacks()
+				tThis.updateVariables()
 			}).catch(function handleError(err) {
 				tThis.status(tThis.STATUS_ERROR, 'Not connected')
 				tThis.log('Not connected')
@@ -69,18 +72,81 @@ class instance extends instance_skel {
 		}
 	}
 
+	msToTime(s) {
+		let isSmallerThenZero = false
+		if (s < 0) {
+		  isSmallerThenZero = true
+		}
+	  
+		var ms = s % 1000;
+		s = (s - ms) / 1000;
+		var secs = s % 60;
+		s = (s - secs) / 60;
+		var mins = s % 60;
+		var hrs = (s - mins) / 60;
+		let out = ""
+	  
+		
+		out = ('00' + Math.abs(hrs)).slice(-2) + ':' + ('00' + Math.abs(mins)).slice(-2) + ':' + ('00' + Math.abs(secs)).slice(-2) + '.' + ('000' + Math.abs(ms)).slice(-3)
+		
+	  
+		if (isSmallerThenZero) {
+		  out = "-" + out
+		}
+		return [out, hrs, mins, secs, ms];
+	  }
+
+
+	init_variables() {
+		let varDefs = [];
+		varDefs.push({
+			name: 'time_remaining_hours',
+			label: 'Time remaining (hours)'
+		})
+		varDefs.push({
+			name: 'timeRemainingMins',
+			label: 'Time remaining (mins)'
+		})
+		varDefs.push({
+			name: 'timeRemainingSecs',
+			label: 'Time remaining (secs)'
+		})
+		varDefs.push({
+			name: 'timeRemainingMillis',
+			label: 'Time remaining (millis)'
+		})
+		this.setVariableDefinitions(varDefs);
+		this.setVariable('timeRemainingHours', '0')
+		this.setVariable('timeRemainingMins', '0')
+		this.setVariable('timeRemainingSecs', '0')
+		this.setVariable('timeRemainingMillis', '0')
+
+		this.updateVariables()
+
+		/*this.setVariableDefinitions([
+			{
+				name: "amount_sounds_currently_playing",
+				label: "Songs currently playing"
+			}
+		])
+		this.setVariable('amount_sounds_currently_playing', "0");*/
+	}
+
 	updateVariables() { // Outdated
-		const tThis = this
 		if (this.isReady) {
-			bent('GET', 200, "http://" + this.config.host + ':' + this.config["port"] + "/v1/current", "json")().then(
-				function handleList(body) {
-					tThis.status(tThis.STATUS_OK, 'Connected')
-					tThis.setVariable('amount_sounds_currently_playing', String(Object.keys(body).length))
-					// console.log(Object.keys(body).length)
-				})
+			const now = new Date()
+			const diff = this.lastData.countdownGoal - now.getTime()
+			const timeVar = this.msToTime(diff)
+			this.setVariable('timeRemainingHours', timeVar[1])
+			this.setVariable('timeRemainingMins', timeVar[2])
+			this.setVariable('timeRemainingSecs', timeVar[3])
+			this.setVariable('timeRemainingMillis', timeVar[4])
+			// console.log(timeVar)			
+			
 		}
 	}
 
+	
 	initPresets() {
 		var presets = [];
 
@@ -458,7 +524,7 @@ class instance extends instance_skel {
 		})
 
 		presets.push({
-			category: 'Messageing',
+			category: 'Messaging',
 			label: "Send a message",
 			bank: {
 				style: 'text',
@@ -539,15 +605,7 @@ class instance extends instance_skel {
 		this.setFeedbackDefinitions(feedbacks);
 	}
 
-	variables() {
-		/*this.setVariableDefinitions([
-			{
-				name: "amount_sounds_currently_playing",
-				label: "Songs currently playing"
-			}
-		])
-		this.setVariable('amount_sounds_currently_playing', "0");*/
-	}
+
 
 	async actions() {
 		this.setActions({
@@ -807,6 +865,7 @@ class instance extends instance_skel {
 
 	destroy() {
 		clearInterval(this.intervalId)
+		clearInterval(this.interval2)
 		this.debug('destroy')
 	}
 
