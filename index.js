@@ -19,7 +19,9 @@ class instance extends instance_skel {
 		this.actions() // export actions
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
-		this.init_variables() // export variables
+		if (this.config.allowVariables || false) {
+			this.init_variables() // export
+		}
 		this.status(this.STATUS_WARNING, 'Connecting')
 		this.isReady = false
 		if (this.config.host != undefined) {
@@ -37,7 +39,11 @@ class instance extends instance_skel {
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
 		}, this.config.refreshTime | 1000)
-		this.interval2 = setInterval(this.updateVariables, 50)
+		if (this.config.allowVariables || false) {
+			this.interval2 = setInterval(function updateFas() {
+				tThis.updateVariables()
+			}, this.config.recalcTime | 500)
+		}
 	}
 
 	feedback() {}
@@ -54,7 +60,6 @@ class instance extends instance_skel {
 				})
 				.catch(function handleError(err) {
 					tThis.status(tThis.STATUS_ERROR, 'Not connected')
-					tThis.log('Not connected')
 				})
 		}
 	}
@@ -68,11 +73,16 @@ class instance extends instance_skel {
 				})
 				.catch(function handleError(err) {
 					tThis.status(tThis.STATUS_ERROR, 'Not connected')
-					tThis.log('Not connected')
 				})
 		}
 	}
 
+	/**
+	 * Converts milliseconds into a timestamp
+	 *
+	 * @param {Number} s - the amount of milliseconds to parse
+	 * @returns {List} - a list containing [compound, hours, minutes, seconds, milliseconds], where compound is everything together
+	 */
 	msToTime(s) {
 		let isSmallerThenZero = false
 		if (s < 0) {
@@ -97,6 +107,7 @@ class instance extends instance_skel {
 			('000' + Math.abs(ms)).slice(-3)
 
 		if (isSmallerThenZero) {
+			// Append a "-" if the time is negative (only for compound)
 			out = '-' + out
 		}
 		return [out, hrs, mins, secs, ms]
@@ -105,20 +116,24 @@ class instance extends instance_skel {
 	init_variables() {
 		let varDefs = []
 		varDefs.push({
-			name: 'time_remaining_hours',
-			label: 'Time remaining (hours)',
+			name: 'timeRemainingHours',
+			label: 'Time remaining (Hours)',
 		})
 		varDefs.push({
 			name: 'timeRemainingMins',
-			label: 'Time remaining (mins)',
+			label: 'Time remaining (Minutes)',
 		})
 		varDefs.push({
 			name: 'timeRemainingSecs',
-			label: 'Time remaining (secs)',
+			label: 'Time remaining (Seconds)',
 		})
 		varDefs.push({
 			name: 'timeRemainingMillis',
-			label: 'Time remaining (millis)',
+			label: 'Time remaining (Milliseconds)',
+		})
+		varDefs.push({
+			name: 'timeRemaining',
+			label: 'Time remaining (Compound)',
 		})
 		this.setVariableDefinitions(varDefs)
 		this.setVariable('timeRemainingHours', '0')
@@ -126,28 +141,24 @@ class instance extends instance_skel {
 		this.setVariable('timeRemainingSecs', '0')
 		this.setVariable('timeRemainingMillis', '0')
 
-		this.updateVariables()
+		this.setVariable('timeRemaining', '0')
 
-		/*this.setVariableDefinitions([
-			{
-				name: "amount_sounds_currently_playing",
-				label: "Songs currently playing"
-			}
-		])
-		this.setVariable('amount_sounds_currently_playing', "0");*/
+		this.updateVariables()
 	}
 
 	updateVariables() {
-		// Outdated
-		if (this.isReady) {
+		if (this.isReady && this.config.allowVariables) {
 			const now = new Date()
-			const diff = this.lastData.countdownGoal - now.getTime()
+			const diff = this.lastData.countdownGoal - now.getTime() // Get difference between now and timer goal, this can be negative
 			const timeVar = this.msToTime(diff)
-			this.setVariable('timeRemainingHours', timeVar[1])
-			this.setVariable('timeRemainingMins', timeVar[2])
-			this.setVariable('timeRemainingSecs', timeVar[3])
-			this.setVariable('timeRemainingMillis', timeVar[4])
-			// console.log(timeVar)
+			if (this.lastData.timerRunState) {
+				// Only update variables if timer is running, this is the same way the main app handles it
+				this.setVariable('timeRemaining', timeVar[0])
+				this.setVariable('timeRemainingHours', timeVar[1])
+				this.setVariable('timeRemainingMins', timeVar[2])
+				this.setVariable('timeRemainingSecs', timeVar[3])
+				this.setVariable('timeRemainingMillis', timeVar[4])
+			}
 		}
 	}
 
@@ -546,12 +557,12 @@ class instance extends instance_skel {
 
 		// Message presets
 		presets.push({
-			category: 'Messageing',
+			category: 'Messaging',
 			label: 'Hide the message',
 			bank: {
 				style: 'text',
 				text: 'Hide message',
-				size: '18',
+				size: '17',
 				color: '16777215',
 			},
 			actions: [
@@ -681,7 +692,7 @@ class instance extends instance_skel {
 					{
 						type: 'dropdown',
 						label: 'Control the countdown',
-						id: 'modeDropdown',
+						id: 'controlDropdown',
 						default: 'play',
 						tooltip: '',
 						choices: [
@@ -817,9 +828,35 @@ class instance extends instance_skel {
 			{
 				type: 'number',
 				id: 'refreshTime',
-				label: 'Update interval',
+				label: 'Update interval (Poling)',
 				width: 4,
 				default: 1000,
+			},
+			{
+				type: 'number',
+				id: 'recalcTime',
+				label: 'Update interval (Recalculation)',
+				width: 4,
+				default: 400,
+			},
+			{
+				type: 'text',
+				id: 'notice',
+				width: 12,
+				label: '',
+				value: `<span style="color: #404040">
+							<h5>Features under development</h5>
+							The feature(s) below this line are currently under development. They might require a restart. They might not work properly.
+							<br>
+							Allow variables will enable variables for button text.
+						</span>`,
+			},
+			{
+				type: 'checkbox',
+				id: 'allowVariables',
+				label: 'Allow variables',
+				default: false,
+				width: 400,
 			},
 		]
 	}
@@ -828,18 +865,21 @@ class instance extends instance_skel {
 		this.config = config
 		const tThis = this
 		this.isReady = false
-		this.status(this.STATUS_WARNING, 'Connecting')
+		this.status(this.STATUS_WARNING, 'Connecting after config update')
+		// console.log(this.config)
 		if (this.config.host != undefined && this.config.port != undefined) {
 			this.log('info', 'Connecting to http://' + this.config['host'] + ':' + this.config['port'])
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/system', 'json')().then(
 				function handleList(body) {
-					tThis.status(this.STATUS_OK, 'Connected')
-					// tThis.log('Connected to ' + this.config.host)
-					// tThis.log(body)
+					tThis.status(tThis.STATUS_OK, 'Connected')
 					this.isReady = true
 				}
 			)
+		} else {
+			this.status(this.STATUS_ERROR, 'No host or port specified')
 		}
+		setTimeout(this.checkConnection, 1000)
+		this.checkConnection()
 	}
 
 	action(action) {
@@ -854,14 +894,13 @@ class instance extends instance_skel {
 					body
 				) {
 					tTemp.status(tTemp.STATUS_OK, 'Connected')
-					tThis.checkFeedbacks()
+					tTemp.checkFeedbacks()
 				})
 				return
 			} else if (action.action == 'setShowTime') {
 				bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 						tTemp.log(body)
 					}
 				)
@@ -870,7 +909,6 @@ class instance extends instance_skel {
 				bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 						tTemp.log(body)
 					}
 				)
@@ -879,7 +917,6 @@ class instance extends instance_skel {
 				bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 						tTemp.log(body)
 					}
 				)
@@ -888,25 +925,20 @@ class instance extends instance_skel {
 				bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 						tTemp.log(body)
 					}
 				)
 				return
 			} else if (action.action == 'playCtrls') {
-				bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.modeDropdown, 'json')().then(function handleList(
-					body
-				) {
+				bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.id, 'json')().then(function handleList(body) {
 					tTemp.status(tTemp.STATUS_OK, 'Connected')
-					tTemp.log('Connected to ' + tTemp.config.host)
-					tTemp.log(body)
+					tTemp.checkFeedbacks()
 				})
 				return
 			} else if (action.action == 'addRelativ') {
 				bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 					}
 				)
 				return
@@ -917,21 +949,18 @@ class instance extends instance_skel {
 					body
 				) {
 					tTemp.status(tTemp.STATUS_OK, 'Connected')
-					tTemp.log('Connected to ' + tTemp.config.host)
 				})
 				return
 			} else if (action.action == 'sendMessage') {
 				bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
 					function handleList(body) {
 						tTemp.status(tTemp.STATUS_OK, 'Connected')
-						tTemp.log('Connected to ' + tTemp.config.host)
 					}
 				)
 				return
 			} else if (action.action == 'hideMessage') {
 				bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
 					tTemp.status(tTemp.STATUS_OK, 'Connected')
-					tTemp.log('Connected to ' + tTemp.config.host)
 				})
 				return
 			}
