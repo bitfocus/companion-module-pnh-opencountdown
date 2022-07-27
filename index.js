@@ -18,7 +18,7 @@ class instance extends instance_skel {
 
 	init() {
 		let tThis = this
-		
+
 		this.actions() // export actions
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
@@ -48,8 +48,6 @@ class instance extends instance_skel {
 			}, this.config.recalcTime | 500)
 		}
 	}
-
-	feedback() {}
 
 	updateDataFrame() {
 		let tThis = this
@@ -139,12 +137,15 @@ class instance extends instance_skel {
 			label: 'Time remaining (Compound)',
 		})
 		this.setVariableDefinitions(varDefs)
-		this.setVariable('timeRemainingHours', '0')
-		this.setVariable('timeRemainingMins', '0')
-		this.setVariable('timeRemainingSecs', '0')
-		this.setVariable('timeRemainingMillis', '0')
 
-		this.setVariable('timeRemaining', '0')
+		this.setVariables({
+			'timeRemainingHours': '0',
+			'timeRemainingMins': '0',
+			'timeRemainingSecs': '0',
+			'timeRemainingMillis': '0',
+	
+			'timeRemaining': '0'
+		})
 
 		this.updateVariables()
 	}
@@ -156,11 +157,13 @@ class instance extends instance_skel {
 			const timeVar = this.msToTime(diff)
 			if (this.lastData.timerRunState) {
 				// Only update variables if timer is running, this is the same way the main app handles it
-				this.setVariable('timeRemaining', timeVar[0])
-				this.setVariable('timeRemainingHours', timeVar[1])
-				this.setVariable('timeRemainingMins', timeVar[2])
-				this.setVariable('timeRemainingSecs', timeVar[3])
-				this.setVariable('timeRemainingMillis', timeVar[4])
+				this.setVariables({
+					'timeRemaining': timeVar[0],
+					'timeRemainingHours': timeVar[1],
+					'timeRemainingMins': timeVar[2],
+					'timeRemainingSecs': timeVar[3],
+					'timeRemainingMillis': timeVar[4],
+				})
 			}
 		}
 	}
