@@ -13,9 +13,12 @@ class instance extends instance_skel {
 
 	constructor(system, id, config) {
 		super(system, id, config)
-		let tThis = this
 		this.lastData = {}
+	}
 
+	init() {
+		let tThis = this
+		
 		this.actions() // export actions
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
