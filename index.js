@@ -22,9 +22,7 @@ class instance extends instance_skel {
 		this.actions() // export actions
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
-		if (this.config.allowVariables || false) {
-			this.init_variables() // export
-		}
+		this.init_variables() // export
 		this.status(this.STATUS_WARNING, 'Connecting')
 		this.isReady = false
 		if (this.config.host != undefined) {
@@ -42,11 +40,11 @@ class instance extends instance_skel {
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
 		}, this.config.refreshTime | 1000)
-		if (this.config.allowVariables || false) {
-			this.interval2 = setInterval(function updateFas() {
-				tThis.updateVariables()
-			}, this.config.recalcTime | 500)
-		}
+
+		this.interval2 = setInterval(function updateFas() {
+			tThis.updateVariables()
+		}, this.config.recalcTime | 500)
+
 	}
 
 	updateDataFrame() {
@@ -54,6 +52,7 @@ class instance extends instance_skel {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
+					// console.log(body)
 					tThis.status(tThis.STATUS_OK, 'Connected')
 					tThis.lastData = body
 					tThis.checkFeedbacks()
@@ -143,7 +142,7 @@ class instance extends instance_skel {
 			'timeRemainingMins': '0',
 			'timeRemainingSecs': '0',
 			'timeRemainingMillis': '0',
-	
+
 			'timeRemaining': '0'
 		})
 
@@ -151,7 +150,7 @@ class instance extends instance_skel {
 	}
 
 	updateVariables() {
-		if (this.isReady && this.config.allowVariables) {
+		if (this.isReady) {
 			const now = new Date()
 			const diff = this.lastData.countdownGoal - now.getTime() // Get difference between now and timer goal, this can be negative
 			const timeVar = this.msToTime(diff)
@@ -845,7 +844,7 @@ class instance extends instance_skel {
 				width: 4,
 				default: 400,
 			},
-			{
+			/*{
 				type: 'text',
 				id: 'notice',
 				width: 12,
@@ -863,7 +862,7 @@ class instance extends instance_skel {
 				label: 'Allow variables',
 				default: false,
 				width: 400,
-			},
+			},*/
 		]
 	}
 
