@@ -23,10 +23,10 @@ class instance extends instance_skel {
 		this.initPresets() // export presets
 		this.initFeedback() // export feedback
 		this.init_variables() // export
-		this.status(this.STATUS_WARNING, 'Connecting')
-		this.isReady = false
-		if (this.config.host != undefined) {
-			// this.log("info", 'Connecting to ' + this.config["host"] + ':' + this.config["port"])
+		this.status(this.STATUS_WARNING, 'Connecting') // set inital state
+		this.isReady = false // flag for functions that need to wait for the module to be ready
+		if (this.config.host != undefined) { // basic check if config is valid
+			// check if connection works
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')().then(
 				function handleList(body) {
 					tThis.status(tThis.STATUS_OK, 'Connected')
@@ -37,10 +37,12 @@ class instance extends instance_skel {
 			)
 		}
 
+		// Pull new data 
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
 		}, this.config.refreshTime | 1000)
 
+		// Regularly update variables
 		this.interval2 = setInterval(function updateFas() {
 			tThis.updateVariables()
 		}, this.config.recalcTime | 500)
@@ -52,18 +54,20 @@ class instance extends instance_skel {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
-					// console.log(body)
 					tThis.status(tThis.STATUS_OK, 'Connected')
 					tThis.lastData = body
 					tThis.checkFeedbacks()
 					tThis.updateVariables()
 				})
 				.catch(function handleError(err) {
-					tThis.status(tThis.STATUS_ERROR, 'Not connected')
+					tThis.status(tThis.STATUS_ERROR, 'Not connected (Failed)')
 				})
 		}
 	}
 
+	/**
+	 * Makes sure connection is working
+	 */
 	checkConnection() {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
@@ -72,7 +76,7 @@ class instance extends instance_skel {
 					tThis.lastData = body
 				})
 				.catch(function handleError(err) {
-					tThis.status(tThis.STATUS_ERROR, 'Not connected')
+					tThis.status(tThis.STATUS_ERROR, 'Not connected (Failed)')
 				})
 		}
 	}
@@ -114,7 +118,7 @@ class instance extends instance_skel {
 	}
 
 	init_variables() {
-		let varDefs = []
+		let varDefs = [] // list containing all variable definitions
 		varDefs.push({
 			name: 'timeRemainingHours',
 			label: 'Time remaining (Hours)',
@@ -137,12 +141,12 @@ class instance extends instance_skel {
 		})
 		this.setVariableDefinitions(varDefs)
 
+		// Zero-out all variables
 		this.setVariables({
 			'timeRemainingHours': '0',
 			'timeRemainingMins': '0',
 			'timeRemainingSecs': '0',
 			'timeRemainingMillis': '0',
-
 			'timeRemaining': '0'
 		})
 
