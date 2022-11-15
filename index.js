@@ -686,6 +686,7 @@ class instance extends instance_skel {
 							{ id: 'clock', label: 'Clock' },
 							{ id: 'black', label: 'Black' },
 							{ id: 'test', label: 'Testimage' },
+							{ id: 'screensaver', label: 'Screensaver' },
 						],
 						minChoicesForSearch: 0,
 					},
