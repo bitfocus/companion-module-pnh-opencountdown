@@ -1,42 +1,33 @@
-const instance_skel = require('../../instance_skel')
 const bent = require('bent')
+const { InstanceStatus, InstanceBase, runEntrypoint } = require('@companion-module/base')
+const UpgradeScripts = require('./upgrades')
 
-class instance extends instance_skel {
-	/**
-	 * Create an instance of the module
-	 *
-	 * @param {EventEmitter} system - the brains of the operation
-	 * @param {string} id - the instance ID
-	 * @param {Object} config - saved user configuration parameters
-	 * @since 1.0.0
-	 */
-
-	constructor(system, id, config) {
-		super(system, id, config)
-		this.lastData = {}
+class opencountdownInstance extends InstanceBase {
+	constructor(internal) {
+		super(internal)
 	}
 
-	init() {
+	init(config) {
 		let tThis = this
-
+		this.config = config
 		this.actions() // export actions
-		this.initPresets() // export presets
-		this.initFeedback() // export feedback
-		this.init_variables() // export
-		this.status(this.STATUS_WARNING, 'Connecting') // set inital state
-		this.isReady = false // flag for functions that need to wait for the module to be ready
+		//this.initPresets() // export presets
+		//this.initFeedback() // export feedback
+		//this.init_variables() // export
+		//this.updateStatus(InstanceStatus.Connecting) // set inital state
+		//this.isReady = false // flag for functions that need to wait for the module to be ready
 		if (this.config.host != undefined) { // basic check if config is valid
 			// check if connection works
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')().then(
 				function handleList(body) {
-					tThis.status(tThis.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					tThis.log('Connected to ' + tThis.config.host)
 					tThis.isReady = true
 					tThis.lastData = body
 				}
 			)
 		}
-
+/*
 		// Pull new data 
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
@@ -46,7 +37,7 @@ class instance extends instance_skel {
 		this.interval2 = setInterval(function updateFas() {
 			tThis.updateVariables()
 		}, this.config.recalcTime | 500)
-
+*/
 	}
 
 	updateDataFrame() {
@@ -54,13 +45,13 @@ class instance extends instance_skel {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
-					tThis.status(tThis.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					tThis.lastData = body
 					tThis.checkFeedbacks()
 					tThis.updateVariables()
 				})
 				.catch(function handleError(err) {
-					tThis.status(tThis.STATUS_ERROR, 'Not connected (Failed)')
+					tThis.updateStatus(tThis.updateStatus_ERROR, 'Not connected (Failed)')
 				})
 		}
 	}
@@ -72,11 +63,11 @@ class instance extends instance_skel {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
-					tThis.status(tThis.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					tThis.lastData = body
 				})
 				.catch(function handleError(err) {
-					tThis.status(tThis.STATUS_ERROR, 'Not connected (Failed)')
+					tThis.updateStatus(tThis.updateStatus_ERROR, 'Not connected (Failed)')
 				})
 		}
 	}
@@ -675,9 +666,12 @@ class instance extends instance_skel {
 	}
 
 	async actions() {
-		this.setActions({
+		const baseUrl = 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1'
+		let tThis = this
+		let tTemp = this
+		this.setActionDefinitions({
 			setMode: {
-				label: 'Set the mode to the timer',
+				name: 'Set the mode to the timer',
 				options: [
 					{
 						type: 'dropdown',
@@ -695,9 +689,18 @@ class instance extends instance_skel {
 						minChoicesForSearch: 0,
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/mode?mode=' + action.options.modeDropdown, 'json')().then(function handleList(
+						body
+					) {
+						console.log(body)
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tThis.checkFeedbacks()
+					})
+				}
 			},
 			playCtrls: {
-				label: 'Play controls',
+				name: 'Play controls',
 				options: [
 					{
 						type: 'dropdown',
@@ -713,9 +716,16 @@ class instance extends instance_skel {
 						minChoicesForSearch: 0,
 					},
 				],
+				callback: (action) => {
+					console.log(action.options.controlDropdown)
+					bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.controlDropdown, 'json')().then(function handleList(body) {
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tTemp.checkFeedbacks()
+					})
+				}
 			},
 			setShowTime: {
-				label: 'Style: Show time on timer',
+				name: 'Style: Show time on timer',
 				options: [
 					{
 						type: 'checkbox',
@@ -725,9 +735,17 @@ class instance extends instance_skel {
 						tooltip: 'Show or hide the time on the timer',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tTemp.log(body)
+						}
+					)
+				}
 			},
 			setShowMillis: {
-				label: 'Style: Show milliseconds on timer',
+				name: 'Style: Show milliseconds on timer',
 				options: [
 					{
 						type: 'checkbox',
@@ -737,9 +755,17 @@ class instance extends instance_skel {
 						tooltip: 'Show or hide the milliseconds on the timer page',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tTemp.log(body)
+						}
+					)
+				}
 			},
 			setShowProgressbar: {
-				label: 'Style: Show the progressbar',
+				name: 'Style: Show the progressbar',
 				options: [
 					{
 						type: 'checkbox',
@@ -749,9 +775,17 @@ class instance extends instance_skel {
 						tooltip: 'Show or hide the progress bar',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tTemp.log(body)
+						}
+					)
+				}
 			},
 			setShowTextColor: {
-				label: 'Style: Show the text in color',
+				name: 'Style: Show the text in color',
 				options: [
 					{
 						type: 'checkbox',
@@ -761,9 +795,17 @@ class instance extends instance_skel {
 						tooltip: 'Show the text in a fitting color to the progress bar',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tTemp.log(body)
+						}
+					)
+				}
 			},
 			addRelativ: {
-				label: 'Timer: Add time to the timer',
+				name: 'Timer: Add time to the timer',
 				options: [
 					{
 						type: 'number',
@@ -773,9 +815,16 @@ class instance extends instance_skel {
 						tooltip: 'The amount of milliseconds to add to the timer. 1000 ms = 1 second',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						}
+					)
+				}
 			},
 			setTime: {
-				label: 'Timer: Set the timer to a certain time',
+				name: 'Timer: Set the timer to a certain time',
 				options: [
 					{
 						type: 'number',
@@ -799,9 +848,18 @@ class instance extends instance_skel {
 						tooltip: 'The amount of minutes to set to the timer.',
 					},
 				],
+				callback: (action) => {
+					let timeAmount =
+						action.options.addTimeMillis + action.options.addTimeSec * 1000 + action.options.addTimeMins * 60 * 1000
+					bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')().then(function handleList(
+						body
+					) {
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					})
+				}
 			},
 			sendMessage: {
-				label: 'Messaging: Send a message',
+				name: 'Messaging: Send a message',
 				options: [
 					{
 						type: 'textinput',
@@ -811,14 +869,27 @@ class instance extends instance_skel {
 						tooltip: 'The message which will be displayed',
 					},
 				],
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
+						function handleList(body) {
+							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						}
+					)
+				}
 			},
 			hideMessage: {
-				label: 'Messaging: Hide the message',
+				name: 'Messaging: Hide the message',
+				callback: (action) => {
+					bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					})
+				},
+				options: []
 			},
 		})
 	}
 
-	config_fields() {
+	getConfigFields() {
 		return [
 			{
 				type: 'textinput',
@@ -871,7 +942,7 @@ class instance extends instance_skel {
 		]
 	}
 
-	updateConfig(config) {
+	configUpdated(config) {
 		this.config = config
 		const tThis = this
 		this.isReady = false
@@ -881,7 +952,7 @@ class instance extends instance_skel {
 			this.log('info', 'Connecting to http://' + this.config['host'] + ':' + this.config['port'])
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/system', 'json')().then(
 				function handleList(body) {
-					tThis.status(tThis.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					this.isReady = true
 				}
 			)
@@ -903,14 +974,14 @@ class instance extends instance_skel {
 				bent('GET', 200, baseUrl + '/set/mode?mode=' + action.options.modeDropdown, 'json')().then(function handleList(
 					body
 				) {
-					tTemp.status(tTemp.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					tTemp.checkFeedbacks()
 				})
 				return
 			} else if (action.action == 'setShowTime') {
 				bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 						tTemp.log(body)
 					}
 				)
@@ -918,7 +989,7 @@ class instance extends instance_skel {
 			} else if (action.action == 'setShowMillis') {
 				bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 						tTemp.log(body)
 					}
 				)
@@ -926,7 +997,7 @@ class instance extends instance_skel {
 			} else if (action.action == 'setShowProgressbar') {
 				bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 						tTemp.log(body)
 					}
 				)
@@ -934,21 +1005,21 @@ class instance extends instance_skel {
 			} else if (action.action == 'setShowTextColor') {
 				bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 						tTemp.log(body)
 					}
 				)
 				return
 			} else if (action.action == 'playCtrls') {
 				bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.id, 'json')().then(function handleList(body) {
-					tTemp.status(tTemp.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					tTemp.checkFeedbacks()
 				})
 				return
 			} else if (action.action == 'addRelativ') {
 				bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					}
 				)
 				return
@@ -958,19 +1029,19 @@ class instance extends instance_skel {
 				bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')().then(function handleList(
 					body
 				) {
-					tTemp.status(tTemp.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 				})
 				return
 			} else if (action.action == 'sendMessage') {
 				bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
 					function handleList(body) {
-						tTemp.status(tTemp.STATUS_OK, 'Connected')
+						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 					}
 				)
 				return
 			} else if (action.action == 'hideMessage') {
 				bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
-					tTemp.status(tTemp.STATUS_OK, 'Connected')
+					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
 				})
 				return
 			}
@@ -985,4 +1056,4 @@ class instance extends instance_skel {
 		this.debug('destroy')
 	}
 }
-exports = module.exports = instance
+runEntrypoint(opencountdownInstance, UpgradeScripts)

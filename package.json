@@ -1,31 +1,20 @@
 {
-  "name": "pnh-opencountdown",
-  "version": "1.0.4",
-  "api_version": "1.0.0",
-  "keywords": [
-    "Software",
-    "Countdown",
-    "Professional"
-  ],
-  "manufacturer": "[Project-Name-Here]",
-  "product": "openCountdown",
-  "shortname": "opencountdown",
-  "description": "Module to control openCountdown server",
-  "homepage": "https://git.project-name-here.de/Project-Name-Here/openCountdown",
-  "bugs": {
-    "url": "https://git.project-name-here.de/Project-Name-Here/openCountdown/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+github.com/bitfocus/companion-module-pnh-opencountdown.git"
-  },
-  "main": "index.js",
-  "author": "TheGreydiamond <software@thegreydiamond.de>",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "bent": "^7.3.12"
-  }
+	"name": "pnh-opencountdown",
+	"version": "1.0.4",
+	"repository": {
+		"type": "git",
+		"url": "git+github.com/bitfocus/companion-module-pnh-opencountdown.git"
+	},
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"license": "LGPL-3.0",
+	"dependencies": {
+		"@companion-module/base": "~1.0.0",
+		"bent": "^7.3.12"
+	},
+	"devDependencies": {
+		"@companion-module/tools": "^0.5.1"
+	}
 }
