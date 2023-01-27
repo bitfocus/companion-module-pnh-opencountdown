@@ -2,10 +2,6 @@ const bent = require('bent')
 const { InstanceStatus, InstanceBase, runEntrypoint, combineRgb } = require('@companion-module/base')
 const UpgradeScripts = require('./upgrades')
 
-/**
- * Known issues:
- * - The presets are somewhat broken
- */
 
 class opencountdownInstance extends InstanceBase {
 	constructor(internal) {
@@ -21,7 +17,7 @@ class opencountdownInstance extends InstanceBase {
 		this.variables() // export variables
 		this.updateStatus(InstanceStatus.Connecting) // set inital state
 		//this.isReady = false // flag for functions that need to wait for the module to be ready
-		if (this.config.host != undefined) { // basic check if config is valid
+		if (this.config.host != undefined && this.config.port != undefined) { // basic check if config is valid
 			// check if connection works
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')().then(
 				function handleList(body) {
@@ -42,7 +38,7 @@ class opencountdownInstance extends InstanceBase {
 
 		// Regularly update variables
 		this.interval2 = setInterval(function updateFas() {
-			// tThis.updateVariables()
+			tThis.updateVariables()
 		}, this.config.recalcTime | 500)
 
 	}
@@ -148,7 +144,7 @@ class opencountdownInstance extends InstanceBase {
 			'timeRemaining': '0'
 		})
 
-		// this.updateVariables()
+		this.updateVariables()
 	}
 
 	updateVariables() {
@@ -189,7 +185,7 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'playCtrls',
 							options: {
-								id: 'play',
+								controlDropdown: "play",
 							},
 						}
 					]
@@ -225,7 +221,7 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'playCtrls',
 							options: {
-								id: 'pause',
+								controlDropdown: 'pause',
 							},
 						}
 					]
@@ -261,7 +257,7 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'playCtrls',
 							options: {
-								id: 'restart',
+								controlDropdown: 'restart',
 							},
 						},
 					],
@@ -287,7 +283,7 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'setMode',
 							options: {
-								id: 'timer',
+								modeDropdown: 'timer',
 							},
 						}
 					]
@@ -295,7 +291,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 			feedbacks: [
 				{
-					type: 'mode_state',
+					feedbackId: 'mode_state',
 					options: {
 						modeDropdown: 'timer',
 					},
@@ -335,7 +331,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 			feedbacks: [
 				{
-					type: 'mode_state',
+					feedbackId: 'mode_state',
 					options: {
 						modeDropdown: 'clock',
 					},
@@ -371,7 +367,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 			feedbacks: [
 				{
-					type: 'mode_state',
+					feedbackId: 'mode_state',
 					options: {
 						modeDropdown: 'black',
 					},
@@ -380,8 +376,7 @@ class opencountdownInstance extends InstanceBase {
 						color: combineRgb(255, 255, 255),
 					},
 				},
-			],
-			feedbacks: []
+			]
 		}
 
 		presets["setToTest"] = {
@@ -400,7 +395,7 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'setMode',
 							options: {
-								id: 'test',
+								modeDropdown: 'test',
 							},
 						}
 					]
@@ -408,7 +403,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 			feedbacks: [
 				{
-					type: 'mode_state',
+					feedbackId: 'mode_state',
 					options: {
 						modeDropdown: 'test',
 					},
@@ -417,8 +412,43 @@ class opencountdownInstance extends InstanceBase {
 						color: combineRgb(255, 255, 255),
 					},
 				},
+			]
+		}
+
+		presets["setToScreensaver"] = {
+			category: 'Mode Controls',
+			type: 'button',
+			label: '',
+			style: {
+				style: 'text',
+				text: 'Set to screensaver',
+				size: '18',
+				color: '16777215',
+			},
+			steps: [
+				{
+					down: [
+						{
+							actionId: 'setMode',
+							options: {
+								modeDropdown: 'screensaver',
+							},
+						}
+					]
+				},
 			],
-			feedbacks: []
+			feedbacks: [
+				{
+					feedbackId: 'mode_state',
+					options: {
+						modeDropdown: 'screensaver',
+					},
+					style: {
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
+					},
+				},
+			]
 		}
 
 		// Add to time presets
