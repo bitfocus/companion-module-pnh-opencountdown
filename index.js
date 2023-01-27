@@ -1,6 +1,11 @@
 const bent = require('bent')
-const { InstanceStatus, InstanceBase, runEntrypoint } = require('@companion-module/base')
+const { InstanceStatus, InstanceBase, runEntrypoint, combineRgb } = require('@companion-module/base')
 const UpgradeScripts = require('./upgrades')
+
+/**
+ * Known issues:
+ * - The presets are somewhat broken
+ */
 
 class opencountdownInstance extends InstanceBase {
 	constructor(internal) {
@@ -11,23 +16,25 @@ class opencountdownInstance extends InstanceBase {
 		let tThis = this
 		this.config = config
 		this.actions() // export actions
-		//this.initPresets() // export presets
-		//this.initFeedback() // export feedback
-		//this.init_variables() // export
-		//this.updateStatus(InstanceStatus.Connecting) // set inital state
+		this.initPresets() // export presets
+		this.initFeedback() // export feedback
+		this.variables() // export variables
+		this.updateStatus(InstanceStatus.Connecting) // set inital state
 		//this.isReady = false // flag for functions that need to wait for the module to be ready
 		if (this.config.host != undefined) { // basic check if config is valid
 			// check if connection works
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')().then(
 				function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					tThis.log('Connected to ' + tThis.config.host)
 					tThis.isReady = true
 					tThis.lastData = body
 				}
-			)
+			).catch(function handleError(err) {
+				tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+			})
 		}
-/*
+
 		// Pull new data 
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
@@ -35,9 +42,9 @@ class opencountdownInstance extends InstanceBase {
 
 		// Regularly update variables
 		this.interval2 = setInterval(function updateFas() {
-			tThis.updateVariables()
+			// tThis.updateVariables()
 		}, this.config.recalcTime | 500)
-*/
+
 	}
 
 	updateDataFrame() {
@@ -45,13 +52,13 @@ class opencountdownInstance extends InstanceBase {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					tThis.lastData = body
 					tThis.checkFeedbacks()
 					tThis.updateVariables()
 				})
 				.catch(function handleError(err) {
-					tThis.updateStatus(tThis.updateStatus_ERROR, 'Not connected (Failed)')
+					tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 				})
 		}
 	}
@@ -63,11 +70,11 @@ class opencountdownInstance extends InstanceBase {
 		if (this.isReady) {
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
 				.then(function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					tThis.lastData = body
 				})
 				.catch(function handleError(err) {
-					tThis.updateStatus(tThis.updateStatus_ERROR, 'Not connected (Failed)')
+					tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 				})
 		}
 	}
@@ -108,32 +115,32 @@ class opencountdownInstance extends InstanceBase {
 		return [out, hrs, mins, secs, ms]
 	}
 
-	init_variables() {
+	variables() {
 		let varDefs = [] // list containing all variable definitions
 		varDefs.push({
-			name: 'timeRemainingHours',
-			label: 'Time remaining (Hours)',
+			variableId: 'timeRemainingHours',
+			name: 'Time remaining (Hours)',
 		})
 		varDefs.push({
-			name: 'timeRemainingMins',
-			label: 'Time remaining (Minutes)',
+			variableId: 'timeRemainingMins',
+			name: 'Time remaining (Minutes)',
 		})
 		varDefs.push({
-			name: 'timeRemainingSecs',
-			label: 'Time remaining (Seconds)',
+			variableId: 'timeRemainingSecs',
+			name: 'Time remaining (Seconds)',
 		})
 		varDefs.push({
-			name: 'timeRemainingMillis',
-			label: 'Time remaining (Milliseconds)',
+			variableId: 'timeRemainingMillis',
+			name: 'Time remaining (Milliseconds)',
 		})
 		varDefs.push({
-			name: 'timeRemaining',
-			label: 'Time remaining (Compound)',
+			variableId: 'timeRemaining',
+			name: 'Time remaining (Compound)',
 		})
 		this.setVariableDefinitions(varDefs)
 
 		// Zero-out all variables
-		this.setVariables({
+		this.setVariableValues({
 			'timeRemainingHours': '0',
 			'timeRemainingMins': '0',
 			'timeRemainingSecs': '0',
@@ -141,7 +148,7 @@ class opencountdownInstance extends InstanceBase {
 			'timeRemaining': '0'
 		})
 
-		this.updateVariables()
+		// this.updateVariables()
 	}
 
 	updateVariables() {
@@ -151,7 +158,7 @@ class opencountdownInstance extends InstanceBase {
 			const timeVar = this.msToTime(diff)
 			if (this.lastData.timerRunState) {
 				// Only update variables if timer is running, this is the same way the main app handles it
-				this.setVariables({
+				this.setVariableValues({
 					'timeRemaining': timeVar[0],
 					'timeRemainingHours': timeVar[1],
 					'timeRemainingMins': timeVar[2],
@@ -163,24 +170,29 @@ class opencountdownInstance extends InstanceBase {
 	}
 
 	initPresets() {
-		var presets = []
+		var presets = {}
 
 		// Play presets
-		presets.push({
+		presets["play"] = {
 			category: 'Play Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Play',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'playCtrls',
-					options: {
-						id: 'play',
-					},
+					down: [
+						{
+							actionId: 'playCtrls',
+							options: {
+								id: 'play',
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -190,28 +202,33 @@ class opencountdownInstance extends InstanceBase {
 						booleanSelection: true,
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: (0, 255, 0),
+						color: (255, 255, 255),
 					},
 				},
 			],
-		})
+		}
 
-		presets.push({
+		presets["pause"] = {
 			category: 'Play Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Pause',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'playCtrls',
-					options: {
-						id: 'pause',
-					},
+					down: [
+						{
+							actionId: 'playCtrls',
+							options: {
+								id: 'pause',
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -221,48 +238,59 @@ class opencountdownInstance extends InstanceBase {
 						booleanSelection: false,
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
 					},
 				},
 			],
-		})
+		}
 
-		presets.push({
+		presets["restart"] = {
+			type: 'button',
 			category: 'Play Controls',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Restart',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'playCtrls',
-					options: {
-						id: 'restart',
-					},
+					down: [
+						{
+							actionId: 'playCtrls',
+							options: {
+								id: 'restart',
+							},
+						},
+					],
 				},
 			],
-		})
+			feedbacks: []
+		}
 
 		// Mode presets
-		presets.push({
+		presets["setToTimer"] = {
 			category: 'Mode Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set to timer',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setMode',
-					options: {
-						id: 'timer',
-					},
+					down: [
+						{
+							actionId: 'setMode',
+							options: {
+								id: 'timer',
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -272,32 +300,37 @@ class opencountdownInstance extends InstanceBase {
 						modeDropdown: 'timer',
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
 					},
 				},
 			],
-		})
+		}
 
-		presets.push({
+		presets["setToClock"] = {
 			category: 'Mode Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set to clock',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setMode',
-					options: {
-						modeDropdown: 'clock',
-					},
-					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
-					},
+					down: [
+						{
+							actionId: 'setMode',
+							options: {
+								modeDropdown: 'clock',
+							},
+							style: {
+								bgcolor: combineRgb(0, 255, 0),
+								color: combineRgb(255, 255, 255),
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -307,28 +340,33 @@ class opencountdownInstance extends InstanceBase {
 						modeDropdown: 'clock',
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
 					},
 				},
 			],
-		})
+		}
 
-		presets.push({
+		presets["setToEmpty"] = {
 			category: 'Mode Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set to Empty (Black)',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setMode',
-					options: {
-						modeDropdown: 'black',
-					},
+					down: [
+						{
+							actionId: 'setMode',
+							options: {
+								modeDropdown: 'black',
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -338,28 +376,34 @@ class opencountdownInstance extends InstanceBase {
 						modeDropdown: 'black',
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
 					},
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["setToTest"] = {
 			category: 'Mode Controls',
+			type: 'button',
 			label: '',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set to test image',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setMode',
-					options: {
-						id: 'test',
-					},
+					down: [
+						{
+							actionId: 'setMode',
+							options: {
+								id: 'test',
+							},
+						}
+					]
 				},
 			],
 			feedbacks: [
@@ -369,227 +413,295 @@ class opencountdownInstance extends InstanceBase {
 						modeDropdown: 'test',
 					},
 					style: {
-						bgcolor: this.rgb(0, 255, 0),
-						color: this.rgb(255, 255, 255),
+						bgcolor: combineRgb(0, 255, 0),
+						color: combineRgb(255, 255, 255),
 					},
 				},
 			],
-		})
+			feedbacks: []
+		}
 
 		// Add to time presets
-		presets.push({
+		presets["addTime5000"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 5 seconds',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 5 sec',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 5000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 5000,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["addTime30s"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 30 seconds',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 30 sec',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 30000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 30000,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["addTime60s"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 1 minute',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 1 min',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 60 * 1000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 60 * 1000,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["addTime5m"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 5 minutes',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 5 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 5 * 60 * 1000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 5 * 60 * 1000,
+							},
+						},
+					],
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["addTime10m"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 10 minutes',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 10 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 10 * 60 * 1000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 10 * 60 * 1000,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["addTime30m"] = {
 			category: 'Add to timer',
+			type: 'button',
 			label: 'Add 30 minutes',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Add 30 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'addRelativ',
-					options: {
-						addTime: 30 * 60 * 1000,
-					},
+					down: [
+						{
+							actionId: 'addRelativ',
+							options: {
+								addTime: 30 * 60 * 1000,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
 		// Set time
-		presets.push({
+		presets["setTime30m"] = {
 			category: 'Set to time',
+			type: 'button',
 			label: 'Set to 30 mins',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set 30 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setTime',
-					options: {
-						addTimeMillis: 0,
-						addTimeSec: 0,
-						addTimeMins: 30,
-					},
+					down: [
+						{
+							actionId: 'setTime',
+							options: {
+								addTimeMillis: 0,
+								addTimeSec: 0,
+								addTimeMins: 30,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["setTime15m"] = {
 			category: 'Set to time',
+			type: 'button',
 			label: 'Set to 15 mins',
-			bank: {
+			style: {
 				style: 'text',
 				text: 'Set 15 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setTime',
-					options: {
-						addTimeMillis: 0,
-						addTimeSec: 0,
-						addTimeMins: 15,
-					},
+					down: [
+						{
+							actionId: 'setTime',
+							options: {
+								addTimeMillis: 0,
+								addTimeSec: 0,
+								addTimeMins: 15,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["setTime5m"] = {
 			category: 'Set to time',
 			label: 'Set to 5 mins',
-			bank: {
+			type: 'button',
+			style: {
 				style: 'text',
 				text: 'Set 5 mins',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'setTime',
-					options: {
-						addTimeMillis: 0,
-						addTimeSec: 0,
-						addTimeMins: 5,
-					},
+					down: [
+						{
+							actionId: 'setTime',
+							options: {
+								addTimeMillis: 0,
+								addTimeSec: 0,
+								addTimeMins: 5,
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
 		// Message presets
-		presets.push({
+		presets["hideMessage"] = {
 			category: 'Messaging',
 			label: 'Hide the message',
-			bank: {
+			type: 'button',
+			style: {
 				style: 'text',
 				text: 'Hide message',
 				size: '17',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'hideMessage',
+					down: [
+						{
+							actionId: 'hideMessage',
+
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 
-		presets.push({
+		presets["showMessageHeyWait"] = {
 			category: 'Messaging',
 			label: 'Send a message',
-			bank: {
+			type: 'button',
+			style: {
 				style: 'text',
 				text: 'Hey! Wait',
 				size: '18',
 				color: '16777215',
 			},
-			actions: [
+			steps: [
 				{
-					action: 'sendMessage',
-					options: {
-						message: 'Hey! Please wait!',
-					},
+					down: [
+						{
+							actionId: 'sendMessage',
+							options: {
+								message: 'Hey! Please wait!',
+							},
+						}
+					]
 				},
 			],
-		})
+			feedbacks: []
+		}
 		this.setPresetDefinitions(presets)
 	}
 
@@ -598,13 +710,13 @@ class opencountdownInstance extends InstanceBase {
 		const feedbacks = {}
 		feedbacks['mode_state'] = {
 			type: 'boolean', // Feedbacks can either a simple boolean, or can be an 'advanced' style change (until recently, all feedbacks were 'advanced')
-			label: 'Is a certain mode active',
+			name: 'Is a certain mode active',
 			description: 'Gives feedback depending on the servers mode',
-			style: {
+			defaultStyle: {
 				// The default style change for a boolean feedback
 				// The user will be able to customise these values as well as the fields that will be changed
-				color: this.rgb(0, 0, 0),
-				bgcolor: this.rgb(0, 255, 0),
+				color: combineRgb(0, 0, 0),
+				bgcolor: combineRgb(0, 255, 0),
 			},
 			// options is how the user can choose the condition the feedback activates for
 			options: [
@@ -619,29 +731,35 @@ class opencountdownInstance extends InstanceBase {
 						{ id: 'clock', label: 'Clock' },
 						{ id: 'black', label: 'Black' },
 						{ id: 'test', label: 'Testimage' },
+						{ id: 'screensaver', label: 'Screensaver' },
 					],
 					minChoicesForSearch: 0,
 				},
 			],
 			callback: function (feedback) {
 				// This callback will be called whenever companion wants to check if this feedback is 'active' and should affect the button style
-				if (tThis.lastData.mode == feedback.options.modeDropdown) {
-					return true
-				} else {
-					return false
+				try {
+					if (tThis.lastData.mode == feedback.options.modeDropdown) {
+						return true
+					} else {
+						return false
+					}
+				} catch (error) {
+					tThis.log('error', 'Error in feedback callback: ' + error)
 				}
+
 			},
 		}
 
 		feedbacks['run_state'] = {
 			type: 'boolean', // Feedbacks can either a simple boolean, or can be an 'advanced' style change (until recently, all feedbacks were 'advanced')
-			label: 'Is the countdown running',
+			name: 'Is the countdown running',
 			description: 'Gives feedback depending on wether the countdown is running or not',
-			style: {
+			defaultStyle: {
 				// The default style change for a boolean feedback
 				// The user will be able to customise these values as well as the fields that will be changed
-				color: this.rgb(0, 0, 0),
-				bgcolor: this.rgb(0, 255, 0),
+				color: combineRgb(0, 0, 0),
+				bgcolor: combineRgb(0, 255, 0),
 			},
 			// options is how the user can choose the condition the feedback activates for
 			options: [
@@ -655,11 +773,16 @@ class opencountdownInstance extends InstanceBase {
 			],
 			callback: function (feedback) {
 				// This callback will be called whenever companion wants to check if this feedback is 'active' and should affect the button style
-				if (tThis.lastData.timerRunState == feedback.options.booleanSelection) {
-					return true
-				} else {
-					return false
+				try {
+					if (tThis.lastData.timerRunState == feedback.options.booleanSelection) {
+						return true
+					} else {
+						return false
+					}
+				} catch (error) {
+					tThis.log('error', 'Error in feedback callback: ' + error)
 				}
+
 			},
 		}
 		this.setFeedbackDefinitions(feedbacks)
@@ -694,8 +817,10 @@ class opencountdownInstance extends InstanceBase {
 						body
 					) {
 						console.log(body)
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tThis.updateStatus(InstanceStatus.ok, 'Connected')
 						tThis.checkFeedbacks()
+					}).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 					})
 				}
 			},
@@ -719,8 +844,10 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					console.log(action.options.controlDropdown)
 					bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.controlDropdown, 'json')().then(function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tThis.updateStatus(InstanceStatus.ok, 'Connected')
 						tTemp.checkFeedbacks()
+					}).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 					})
 				}
 			},
@@ -738,10 +865,12 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			setShowMillis: {
@@ -758,10 +887,12 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			setShowProgressbar: {
@@ -778,10 +909,12 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			setShowTextColor: {
@@ -798,10 +931,12 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			addRelativ: {
@@ -818,9 +953,11 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			setTime: {
@@ -854,7 +991,9 @@ class opencountdownInstance extends InstanceBase {
 					bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')().then(function handleList(
 						body
 					) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tThis.updateStatus(InstanceStatus.ok, 'Connected')
+					}).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 					})
 				}
 			},
@@ -872,16 +1011,20 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
 						function handleList(body) {
-							tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 						}
-					)
+					).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+					})
 				}
 			},
 			hideMessage: {
 				name: 'Messaging: Hide the message',
 				callback: (action) => {
 					bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+						tThis.updateStatus(InstanceStatus.ok, 'Connected')
+					}).catch(function handleError(err) {
+						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
 					})
 				},
 				options: []
@@ -946,108 +1089,23 @@ class opencountdownInstance extends InstanceBase {
 		this.config = config
 		const tThis = this
 		this.isReady = false
-		this.status(this.STATUS_WARNING, 'Connecting after config update')
+		this.updateStatus(InstanceStatus.Connecting, 'Connecting after config update')
 		// console.log(this.config)
 		if (this.config.host != undefined && this.config.port != undefined) {
 			this.log('info', 'Connecting to http://' + this.config['host'] + ':' + this.config['port'])
 			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/system', 'json')().then(
 				function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
+					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					this.isReady = true
 				}
-			)
+			).catch(function handleError(err) {
+				tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+			})
 		} else {
-			this.status(this.STATUS_ERROR, 'No host or port specified')
+			this.updateStatus(InstanceStatus.BadConfig, 'No host or port specified')
 		}
 		setTimeout(this.checkConnection, 1000)
 		this.checkConnection()
-	}
-
-	action(action) {
-		// Build the base api URL
-		const baseUrl = 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1'
-		const tTemp = this
-
-		// Only allow requests if the server is ready / available
-		if (this.isReady) {
-			if (action.action == 'setMode') {
-				bent('GET', 200, baseUrl + '/set/mode?mode=' + action.options.modeDropdown, 'json')().then(function handleList(
-					body
-				) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-					tTemp.checkFeedbacks()
-				})
-				return
-			} else if (action.action == 'setShowTime') {
-				bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-						tTemp.log(body)
-					}
-				)
-				return
-			} else if (action.action == 'setShowMillis') {
-				bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-						tTemp.log(body)
-					}
-				)
-				return
-			} else if (action.action == 'setShowProgressbar') {
-				bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-						tTemp.log(body)
-					}
-				)
-				return
-			} else if (action.action == 'setShowTextColor') {
-				bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-						tTemp.log(body)
-					}
-				)
-				return
-			} else if (action.action == 'playCtrls') {
-				bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.id, 'json')().then(function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-					tTemp.checkFeedbacks()
-				})
-				return
-			} else if (action.action == 'addRelativ') {
-				bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-					}
-				)
-				return
-			} else if (action.action == 'setTime') {
-				let timeAmount =
-					action.options.addTimeMillis + action.options.addTimeSec * 1000 + action.options.addTimeMins * 60 * 1000
-				bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')().then(function handleList(
-					body
-				) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-				})
-				return
-			} else if (action.action == 'sendMessage') {
-				bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
-					function handleList(body) {
-						tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-					}
-				)
-				return
-			} else if (action.action == 'hideMessage') {
-				bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
-					tThis.updateStatus(tThis.updateStatus_OK, 'Connected')
-				})
-				return
-			}
-		} else {
-			this.checkConnection()
-		}
 	}
 
 	destroy() {
