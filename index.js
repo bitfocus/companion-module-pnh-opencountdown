@@ -39,7 +39,7 @@ class opencountdownInstance extends InstanceBase {
 		// Regularly update variables
 		this.interval2 = setInterval(function updateFas() {
 			tThis.updateVariables()
-		}, this.config.recalcTime | 500)
+		}, this.config.recalcTime | 250)
 
 	}
 
@@ -133,15 +133,36 @@ class opencountdownInstance extends InstanceBase {
 			variableId: 'timeRemaining',
 			name: 'Time remaining (Compound)',
 		})
+		// Zero padded varients
+		varDefs.push({
+			variableId: 'timeRemainingHoursPadded',
+			name: 'Time remaining (Hours) (Zeropadded)',
+		})
+		varDefs.push({
+			variableId: 'timeRemainingMinsPadded',
+			name: 'Time remaining (Minutes) (Zeropadded)',
+		})
+		varDefs.push({
+			variableId: 'timeRemainingSecsPadded',
+			name: 'Time remaining (Seconds) (Zeropadded)',
+		})
+		varDefs.push({
+			variableId: 'timeRemainingMillisPadded',
+			name: 'Time remaining (Milliseconds) (Zeropadded)',
+		})
 		this.setVariableDefinitions(varDefs)
 
 		// Zero-out all variables
 		this.setVariableValues({
-			'timeRemainingHours': '0',
-			'timeRemainingMins': '0',
-			'timeRemainingSecs': '0',
-			'timeRemainingMillis': '0',
-			'timeRemaining': '0'
+			'timeRemainingHours': '00',
+			'timeRemainingMins': '00',
+			'timeRemainingSecs': '00',
+			'timeRemainingMillis': '00',
+			'timeRemaining': '00',
+			'timeRemainingHoursPadded': '00',
+			'timeRemainingMinsPadded': '00',
+			'timeRemainingSecsPadded': '00',
+			'timeRemainingMillisPadded': '00',
 		})
 
 		this.updateVariables()
@@ -152,6 +173,29 @@ class opencountdownInstance extends InstanceBase {
 			const now = new Date()
 			const diff = this.lastData.countdownGoal - now.getTime() // Get difference between now and timer goal, this can be negative
 			const timeVar = this.msToTime(diff)
+			const paddedTimeVar = this.msToTime(diff)
+			// Do some zero-padding on all memebers of the list, but account for leading "-" if the time is negative
+			for (let i = 1; i < 5; i++) {
+				if (timeVar[0][0] == '-') {
+					paddedTimeVar[i] = '-' + ('00' + Math.abs(timeVar[i])).slice(-2)
+				} else {
+					paddedTimeVar[i] = ('00' + timeVar[i]).slice(-2)
+				}
+			}
+
+			if(this.lastData.enableOverrun == false){
+				this.log('info', 'Overrun is disabled')	
+				console.log('info', this.lastData)	
+				// If overrun is disabled, set all variables to 00:00:00.000
+				timeVar[0] = '00:00:00.000'
+				for(let i = 1; i < 5; i++){
+					paddedTimeVar[i] = '00'
+				}
+				for(let i = 1; i <5; i++) {
+					timeVar[i] = '0';
+				}
+			}
+
 			if (this.lastData.timerRunState) {
 				// Only update variables if timer is running, this is the same way the main app handles it
 				this.setVariableValues({
@@ -160,6 +204,10 @@ class opencountdownInstance extends InstanceBase {
 					'timeRemainingMins': timeVar[2],
 					'timeRemainingSecs': timeVar[3],
 					'timeRemainingMillis': timeVar[4],
+					'timeRemainingHoursPadded': paddedTimeVar[1],
+					'timeRemainingMinsPadded': paddedTimeVar[2],
+					'timeRemainingSecsPadded': paddedTimeVar[3],
+					'timeRemainingMillisPadded': paddedTimeVar[4]
 				})
 			}
 		}
