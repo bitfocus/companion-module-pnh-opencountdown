@@ -2,7 +2,6 @@ const bent = require('bent')
 const { InstanceStatus, InstanceBase, runEntrypoint, combineRgb } = require('@companion-module/base')
 const UpgradeScripts = require('./upgrades')
 
-
 class opencountdownInstance extends InstanceBase {
 	constructor(internal) {
 		super(internal)
@@ -17,21 +16,22 @@ class opencountdownInstance extends InstanceBase {
 		this.variables() // export variables
 		this.updateStatus(InstanceStatus.Connecting) // set inital state
 		//this.isReady = false // flag for functions that need to wait for the module to be ready
-		if (this.config.host != undefined && this.config.port != undefined) { // basic check if config is valid
+		if (this.config.host != undefined && this.config.port != undefined) {
+			// basic check if config is valid
 			// check if connection works
-			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')().then(
-				function handleList(body) {
+			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/data', 'json')()
+				.then(function handleList(body) {
 					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					tThis.log('Connected to ' + tThis.config.host)
 					tThis.isReady = true
 					tThis.lastData = body
-				}
-			).catch(function handleError(err) {
-				tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-			})
+				})
+				.catch(function handleError(err) {
+					tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+				})
 		}
 
-		// Pull new data 
+		// Pull new data
 		this.intervalId = setInterval(function handleInterval() {
 			tThis.updateDataFrame()
 		}, this.config.refreshTime | 1000)
@@ -40,7 +40,6 @@ class opencountdownInstance extends InstanceBase {
 		this.interval2 = setInterval(function updateFas() {
 			tThis.updateVariables()
 		}, this.config.recalcTime | 250)
-
 	}
 
 	updateDataFrame() {
@@ -154,15 +153,15 @@ class opencountdownInstance extends InstanceBase {
 
 		// Zero-out all variables
 		this.setVariableValues({
-			'timeRemainingHours': '00',
-			'timeRemainingMins': '00',
-			'timeRemainingSecs': '00',
-			'timeRemainingMillis': '00',
-			'timeRemaining': '00',
-			'timeRemainingHoursPadded': '00',
-			'timeRemainingMinsPadded': '00',
-			'timeRemainingSecsPadded': '00',
-			'timeRemainingMillisPadded': '00',
+			timeRemainingHours: '00',
+			timeRemainingMins: '00',
+			timeRemainingSecs: '00',
+			timeRemainingMillis: '00',
+			timeRemaining: '00',
+			timeRemainingHoursPadded: '00',
+			timeRemainingMinsPadded: '00',
+			timeRemainingSecsPadded: '00',
+			timeRemainingMillisPadded: '00',
 		})
 
 		this.updateVariables()
@@ -171,45 +170,54 @@ class opencountdownInstance extends InstanceBase {
 	updateVariables() {
 		if (this.isReady) {
 			const now = new Date()
-			const diff = this.lastData.countdownGoal - now.getTime() // Get difference between now and timer goal, this can be negative
+			let diff = 0
+			if (this.lastData.timerRunState) {
+				diff = this.lastData.countdownGoal - now.getTime()
+			} else {
+				diff = now.getTime() - this.lastData.pauseMoment + this.lastData.countdownGoal - now.getTime()
+			}
+			// const diff = this.lastData.countdownGoal - now.getTime() // Get difference between now and timer goal, this can be negative
 			const timeVar = this.msToTime(diff)
 			const paddedTimeVar = this.msToTime(diff)
 			// Do some zero-padding on all memebers of the list, but account for leading "-" if the time is negative
-			for (let i = 1; i < 5; i++) {
+			for (let i = 1; i < 4; i++) {
 				if (timeVar[0][0] == '-') {
 					paddedTimeVar[i] = '-' + ('00' + Math.abs(timeVar[i])).slice(-2)
 				} else {
 					paddedTimeVar[i] = ('00' + timeVar[i]).slice(-2)
 				}
 			}
+			if (timeVar[0][0] == '-') {
+				paddedTimeVar[5] = '-' + ('000' + Math.abs(timeVar[5])).slice(-2)
+			} else {
+				paddedTimeVar[5] = ('000' + timeVar[5]).slice(-2)
+			}
 
-			if(this.lastData.enableOverrun == false){
-				this.log('info', 'Overrun is disabled')	
-				console.log('info', this.lastData)	
+			if (this.lastData.enableOverrun == false) {
 				// If overrun is disabled, set all variables to 00:00:00.000
-				timeVar[0] = '00:00:00.000'
-				for(let i = 1; i < 5; i++){
-					paddedTimeVar[i] = '00'
-				}
-				for(let i = 1; i <5; i++) {
-					timeVar[i] = '0';
+				if (diff < 0) {
+					timeVar[0] = '00:00:00.000'
+					for (let i = 1; i < 5; i++) {
+						paddedTimeVar[i] = '00'
+					}
+					for (let i = 1; i < 5; i++) {
+						timeVar[i] = '0'
+					}
 				}
 			}
 
-			if (this.lastData.timerRunState) {
-				// Only update variables if timer is running, this is the same way the main app handles it
-				this.setVariableValues({
-					'timeRemaining': timeVar[0],
-					'timeRemainingHours': timeVar[1],
-					'timeRemainingMins': timeVar[2],
-					'timeRemainingSecs': timeVar[3],
-					'timeRemainingMillis': timeVar[4],
-					'timeRemainingHoursPadded': paddedTimeVar[1],
-					'timeRemainingMinsPadded': paddedTimeVar[2],
-					'timeRemainingSecsPadded': paddedTimeVar[3],
-					'timeRemainingMillisPadded': paddedTimeVar[4]
-				})
-			}
+			// Only update variables if timer is running, this is the same way the main app handles it
+			this.setVariableValues({
+				timeRemaining: timeVar[0],
+				timeRemainingHours: timeVar[1],
+				timeRemainingMins: timeVar[2],
+				timeRemainingSecs: timeVar[3],
+				timeRemainingMillis: timeVar[4],
+				timeRemainingHoursPadded: paddedTimeVar[1],
+				timeRemainingMinsPadded: paddedTimeVar[2],
+				timeRemainingSecsPadded: paddedTimeVar[3],
+				timeRemainingMillisPadded: paddedTimeVar[4],
+			})
 		}
 	}
 
@@ -217,7 +225,7 @@ class opencountdownInstance extends InstanceBase {
 		var presets = {}
 
 		// Play presets
-		presets["play"] = {
+		presets['play'] = {
 			category: 'Play Controls',
 			type: 'button',
 			label: '',
@@ -233,10 +241,10 @@ class opencountdownInstance extends InstanceBase {
 						{
 							actionId: 'playCtrls',
 							options: {
-								controlDropdown: "play",
+								controlDropdown: 'play',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -253,7 +261,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 		}
 
-		presets["pause"] = {
+		presets['pause'] = {
 			category: 'Play Controls',
 			type: 'button',
 			label: '',
@@ -271,8 +279,8 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								controlDropdown: 'pause',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -289,7 +297,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 		}
 
-		presets["restart"] = {
+		presets['restart'] = {
 			type: 'button',
 			category: 'Play Controls',
 			label: '',
@@ -311,11 +319,11 @@ class opencountdownInstance extends InstanceBase {
 					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
 		// Mode presets
-		presets["setToTimer"] = {
+		presets['setToTimer'] = {
 			category: 'Mode Controls',
 			type: 'button',
 			label: '',
@@ -333,8 +341,8 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								modeDropdown: 'timer',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -351,7 +359,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 		}
 
-		presets["setToClock"] = {
+		presets['setToClock'] = {
 			category: 'Mode Controls',
 			type: 'button',
 			label: '',
@@ -373,8 +381,8 @@ class opencountdownInstance extends InstanceBase {
 								bgcolor: combineRgb(0, 255, 0),
 								color: combineRgb(255, 255, 255),
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -391,7 +399,7 @@ class opencountdownInstance extends InstanceBase {
 			],
 		}
 
-		presets["setToEmpty"] = {
+		presets['setToEmpty'] = {
 			category: 'Mode Controls',
 			type: 'button',
 			label: '',
@@ -409,8 +417,8 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								modeDropdown: 'black',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -424,10 +432,10 @@ class opencountdownInstance extends InstanceBase {
 						color: combineRgb(255, 255, 255),
 					},
 				},
-			]
+			],
 		}
 
-		presets["setToTest"] = {
+		presets['setToTest'] = {
 			category: 'Mode Controls',
 			type: 'button',
 			label: '',
@@ -445,8 +453,8 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								modeDropdown: 'test',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -460,10 +468,10 @@ class opencountdownInstance extends InstanceBase {
 						color: combineRgb(255, 255, 255),
 					},
 				},
-			]
+			],
 		}
 
-		presets["setToScreensaver"] = {
+		presets['setToScreensaver'] = {
 			category: 'Mode Controls',
 			type: 'button',
 			label: '',
@@ -481,8 +489,8 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								modeDropdown: 'screensaver',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
 			feedbacks: [
@@ -496,11 +504,11 @@ class opencountdownInstance extends InstanceBase {
 						color: combineRgb(255, 255, 255),
 					},
 				},
-			]
+			],
 		}
 
 		// Add to time presets
-		presets["addTime5000"] = {
+		presets['addTime5000'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 5 seconds',
@@ -518,14 +526,14 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								addTime: 5000,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["addTime30s"] = {
+		presets['addTime30s'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 30 seconds',
@@ -543,14 +551,14 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								addTime: 30000,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["addTime60s"] = {
+		presets['addTime60s'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 1 minute',
@@ -568,14 +576,14 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								addTime: 60 * 1000,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["addTime5m"] = {
+		presets['addTime5m'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 5 minutes',
@@ -597,10 +605,10 @@ class opencountdownInstance extends InstanceBase {
 					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["addTime10m"] = {
+		presets['addTime10m'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 10 minutes',
@@ -618,14 +626,14 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								addTime: 10 * 60 * 1000,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["addTime30m"] = {
+		presets['addTime30m'] = {
 			category: 'Add to timer',
 			type: 'button',
 			label: 'Add 30 minutes',
@@ -643,15 +651,15 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								addTime: 30 * 60 * 1000,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
 		// Set time
-		presets["setTime30m"] = {
+		presets['setTime30m'] = {
 			category: 'Set to time',
 			type: 'button',
 			label: 'Set to 30 mins',
@@ -671,14 +679,14 @@ class opencountdownInstance extends InstanceBase {
 								addTimeSec: 0,
 								addTimeMins: 30,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["setTime15m"] = {
+		presets['setTime15m'] = {
 			category: 'Set to time',
 			type: 'button',
 			label: 'Set to 15 mins',
@@ -698,14 +706,14 @@ class opencountdownInstance extends InstanceBase {
 								addTimeSec: 0,
 								addTimeMins: 15,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["setTime5m"] = {
+		presets['setTime5m'] = {
 			category: 'Set to time',
 			label: 'Set to 5 mins',
 			type: 'button',
@@ -725,15 +733,15 @@ class opencountdownInstance extends InstanceBase {
 								addTimeSec: 0,
 								addTimeMins: 5,
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
 		// Message presets
-		presets["hideMessage"] = {
+		presets['hideMessage'] = {
 			category: 'Messaging',
 			label: 'Hide the message',
 			type: 'button',
@@ -748,15 +756,14 @@ class opencountdownInstance extends InstanceBase {
 					down: [
 						{
 							actionId: 'hideMessage',
-
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 
-		presets["showMessageHeyWait"] = {
+		presets['showMessageHeyWait'] = {
 			category: 'Messaging',
 			label: 'Send a message',
 			type: 'button',
@@ -774,11 +781,11 @@ class opencountdownInstance extends InstanceBase {
 							options: {
 								message: 'Hey! Please wait!',
 							},
-						}
-					]
+						},
+					],
 				},
 			],
-			feedbacks: []
+			feedbacks: [],
 		}
 		this.setPresetDefinitions(presets)
 	}
@@ -825,7 +832,6 @@ class opencountdownInstance extends InstanceBase {
 				} catch (error) {
 					tThis.log('error', 'Error in feedback callback: ' + error)
 				}
-
 			},
 		}
 
@@ -860,7 +866,6 @@ class opencountdownInstance extends InstanceBase {
 				} catch (error) {
 					tThis.log('error', 'Error in feedback callback: ' + error)
 				}
-
 			},
 		}
 		this.setFeedbackDefinitions(feedbacks)
@@ -891,16 +896,16 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/mode?mode=' + action.options.modeDropdown, 'json')().then(function handleList(
-						body
-					) {
-						console.log(body)
-						tThis.updateStatus(InstanceStatus.ok, 'Connected')
-						tThis.checkFeedbacks()
-					}).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+					bent('GET', 200, baseUrl + '/set/mode?mode=' + action.options.modeDropdown, 'json')()
+						.then(function handleList(body) {
+							console.log(body)
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
+							tThis.checkFeedbacks()
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			playCtrls: {
 				name: 'Play controls',
@@ -921,13 +926,15 @@ class opencountdownInstance extends InstanceBase {
 				],
 				callback: (action) => {
 					console.log(action.options.controlDropdown)
-					bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.controlDropdown, 'json')().then(function handleList(body) {
-						tThis.updateStatus(InstanceStatus.ok, 'Connected')
-						tTemp.checkFeedbacks()
-					}).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+					bent('GET', 200, baseUrl + '/ctrl/timer/' + action.options.controlDropdown, 'json')()
+						.then(function handleList(body) {
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
+							tTemp.checkFeedbacks()
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			setShowTime: {
 				name: 'Style: Show time on timer',
@@ -941,15 +948,15 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/set/layout/showTime?show=' + action.options.showTime, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			setShowMillis: {
 				name: 'Style: Show milliseconds on timer',
@@ -963,15 +970,15 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/set/layout/showMillis?show=' + action.options.showTime, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			setShowProgressbar: {
 				name: 'Style: Show the progressbar',
@@ -985,15 +992,15 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/set/progressbar/show?show=' + action.options.showTime, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			setShowTextColor: {
 				name: 'Style: Show the text in color',
@@ -1007,15 +1014,15 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/set/text/enableColoring?enable=' + action.options.showTime, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
 							tTemp.log(body)
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			addRelativ: {
 				name: 'Timer: Add time to the timer',
@@ -1029,14 +1036,14 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/set/relativAddMillisToTimer?time=' + action.options.addTime, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			setTime: {
 				name: 'Timer: Set the timer to a certain time',
@@ -1066,14 +1073,14 @@ class opencountdownInstance extends InstanceBase {
 				callback: (action) => {
 					let timeAmount =
 						action.options.addTimeMillis + action.options.addTimeSec * 1000 + action.options.addTimeMins * 60 * 1000
-					bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')().then(function handleList(
-						body
-					) {
-						tThis.updateStatus(InstanceStatus.ok, 'Connected')
-					}).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+					bent('GET', 200, baseUrl + '/set/addMillisToTimer?time=' + timeAmount, 'json')()
+						.then(function handleList(body) {
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			sendMessage: {
 				name: 'Messaging: Send a message',
@@ -1087,25 +1094,27 @@ class opencountdownInstance extends InstanceBase {
 					},
 				],
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')().then(
-						function handleList(body) {
+					bent('GET', 200, baseUrl + '/ctrl/message/show?msg=' + action.options.message, 'json')()
+						.then(function handleList(body) {
 							tThis.updateStatus(InstanceStatus.ok, 'Connected')
-						}
-					).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
-				}
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
+				},
 			},
 			hideMessage: {
 				name: 'Messaging: Hide the message',
 				callback: (action) => {
-					bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')().then(function handleList(body) {
-						tThis.updateStatus(InstanceStatus.ok, 'Connected')
-					}).catch(function handleError(err) {
-						tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-					})
+					bent('GET', 200, baseUrl + '/ctrl/message/hide', 'json')()
+						.then(function handleList(body) {
+							tThis.updateStatus(InstanceStatus.ok, 'Connected')
+						})
+						.catch(function handleError(err) {
+							tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+						})
 				},
-				options: []
+				options: [],
 			},
 		})
 	}
@@ -1171,14 +1180,14 @@ class opencountdownInstance extends InstanceBase {
 		// console.log(this.config)
 		if (this.config.host != undefined && this.config.port != undefined) {
 			this.log('info', 'Connecting to http://' + this.config['host'] + ':' + this.config['port'])
-			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/system', 'json')().then(
-				function handleList(body) {
+			bent('GET', 200, 'http://' + this.config.host + ':' + this.config['port'] + '/api/v1/system', 'json')()
+				.then(function handleList(body) {
 					tThis.updateStatus(InstanceStatus.ok, 'Connected')
 					this.isReady = true
-				}
-			).catch(function handleError(err) {
-				tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
-			})
+				})
+				.catch(function handleError(err) {
+					tThis.updateStatus(InstanceStatus.ConnectionFailure, 'Not connected (Failed)')
+				})
 		} else {
 			this.updateStatus(InstanceStatus.BadConfig, 'No host or port specified')
 		}
