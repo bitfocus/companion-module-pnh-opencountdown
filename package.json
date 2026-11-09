@@ -11,10 +11,10 @@
 	},
 	"license": "LGPL-3.0",
 	"dependencies": {
-		"@companion-module/base": "~1.4.3",
+		"@companion-module/base": "~1.15.1",
 		"bent": "^7.3.12"
 	},
 	"devDependencies": {
-		"@companion-module/tools": "^2.8.0"
+		"@companion-module/tools": "^2.9.0"
 	}
 }
